@@ -19,7 +19,9 @@ dependencies:
   http: ^1.2.2
   flutter_secure_storage: ^9.2.2
   path_provider: ^2.1.4
-
+  local_auth: ^3.0.2
+  fl_chart: ^1.2.0
+  csv: ^8.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
