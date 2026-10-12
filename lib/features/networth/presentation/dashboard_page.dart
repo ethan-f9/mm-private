@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:personal_finance_manager/core/db/app_database.dart';
 import 'package:personal_finance_manager/core/db/enums.dart';
 import 'package:personal_finance_manager/core/money/currency_meta.dart';
 import 'package:personal_finance_manager/core/utils/ui_helpers.dart';
@@ -8,7 +9,7 @@ import 'package:personal_finance_manager/core/widgets/amount_text.dart';
 import 'package:personal_finance_manager/features/accounts/data/account_repository.dart';
 import 'package:personal_finance_manager/features/transactions/domain/ledger_item.dart';
 import 'package:personal_finance_manager/features/transactions/presentation/ledger_providers.dart';
-import 'package:personal_finance_manager/core/db/app_database.dart';
+
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
@@ -17,9 +18,11 @@ class DashboardPage extends ConsumerWidget {
     final text = Theme.of(context).textTheme;
     final stealth = ref.watch(stealthModeProvider);
     final accounts = ref.watch(accountsProvider);
-    final balances = ref.watch(accountBalancesProvider).valueOrNull ?? const {};
+    final Map<String, int> balances =
+        ref.watch(accountBalancesProvider).valueOrNull ?? const <String, int>{};
     final month = ref.watch(selectedMonthProvider);
-    final ledger = ref.watch(ledgerProvider(month)).valueOrNull ?? const [];
+    final List<LedgerItem> ledger =
+        ref.watch(ledgerProvider(month)).valueOrNull ?? const <LedgerItem>[];
 
     // Total saldo per currency. Konversi kurs ke IDR menyusul di fase 2,
     // jadi currency asing ditampilkan terpisah, tidak dijumlahkan.
@@ -47,6 +50,11 @@ class DashboardPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Ringkasan'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Pengaturan',
+            onPressed: () => context.push('/settings'),
+          ),
           IconButton(
             icon: Icon(stealth ? Icons.visibility_off : Icons.visibility),
             tooltip: 'Stealth mode',

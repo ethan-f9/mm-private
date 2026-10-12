@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:personal_finance_manager/core/db/app_database.dart';
 import 'package:personal_finance_manager/core/money/amount_input.dart';
 import 'package:personal_finance_manager/core/utils/ui_helpers.dart';
+import 'package:personal_finance_manager/core/widgets/balance_hint.dart';
 import 'package:personal_finance_manager/features/accounts/data/account_repository.dart';
 import 'package:personal_finance_manager/features/transactions/data/transaction_repository.dart';
 
@@ -44,16 +46,11 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
   }
 
   Future<void> _save({
-    required String? fromId,
-    required String? toId,
-    required String? fromCurrency,
-    required String? toCurrency,
+    required String fromId,
+    required String toId,
+    required String fromCurrency,
+    required String toCurrency,
   }) async {
-    if (fromId == null || toId == null || fromCurrency == null || toCurrency == null) {
-      showSnack(context, 'Pilih akun asal dan tujuan');
-      return;
-    }
-
     final fromMinor = parseAmountMinor(_amountFrom.text, fromCurrency);
     if (fromMinor == null) {
       showSnack(context, 'Nominal tidak valid');
@@ -103,7 +100,10 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final accounts = ref.watch(accountsProvider).valueOrNull ?? const [];
+    final List<Account> accounts =
+        ref.watch(accountsProvider).valueOrNull ?? const [];
+    final Map<String, int> balances =
+        ref.watch(accountBalancesProvider).valueOrNull ?? const {};
 
     if (accounts.length < 2) {
       return Scaffold(
@@ -127,13 +127,26 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
       );
     }
 
-    final fromId = _fromId ?? accounts.first.id;
-    final toId = _toId ?? accounts[1].id;
-    final fromCurrency =
-        accounts.where((a) => a.id == fromId).firstOrNull?.currency;
-    final toCurrency = accounts.where((a) => a.id == toId).firstOrNull?.currency;
-    final crossCurrency =
-        fromCurrency != null && toCurrency != null && fromCurrency != toCurrency;
+    final Account from = accounts.where((a) => a.id == _fromId).firstOrNull ??
+        accounts.first;
+    final Account to =
+        accounts.where((a) => a.id == _toId).firstOrNull ?? accounts[1];
+
+    final fromBalance = balances[from.id] ?? from.openingBalanceMinor;
+    final toBalance = balances[to.id] ?? to.openingBalanceMinor;
+    final crossCurrency = from.currency != to.currency;
+
+    final fromMinor = parseAmountMinor(_amountFrom.text, from.currency);
+    final toMinor = crossCurrency
+        ? parseAmountMinor(_amountTo.text, to.currency)
+        : fromMinor;
+    final feeText = _fee.text.trim();
+    final feeMinor =
+        feeText.isEmpty ? 0 : (parseAmountMinor(feeText, from.currency) ?? 0);
+
+    final int? fromAfter =
+        fromMinor == null ? null : fromBalance - fromMinor - feeMinor;
+    final int? toAfter = toMinor == null ? null : toBalance + toMinor;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transfer')),
@@ -148,10 +161,17 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
               for (final a in accounts)
                 ChoiceChip(
                   label: Text('${a.name} (${a.currency})'),
-                  selected: fromId == a.id,
+                  selected: from.id == a.id,
                   onSelected: (_) => setState(() => _fromId = a.id),
                 ),
             ],
+          ),
+          const SizedBox(height: 8),
+          BalanceHint(
+            label: 'Saldo ${from.name}',
+            balanceMinor: fromBalance,
+            currency: from.currency,
+            afterMinor: fromAfter,
           ),
           const SizedBox(height: 24),
           Text('Ke', style: text.labelLarge),
@@ -162,18 +182,26 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
               for (final a in accounts)
                 ChoiceChip(
                   label: Text('${a.name} (${a.currency})'),
-                  selected: toId == a.id,
+                  selected: to.id == a.id,
                   onSelected: (_) => setState(() => _toId = a.id),
                 ),
             ],
+          ),
+          const SizedBox(height: 8),
+          BalanceHint(
+            label: 'Saldo ${to.name}',
+            balanceMinor: toBalance,
+            currency: to.currency,
+            afterMinor: toAfter,
           ),
           const SizedBox(height: 24),
           TextField(
             controller: _amountFrom,
             keyboardType: TextInputType.text,
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: 'Nominal dikirim',
-              prefixText: fromCurrency == null ? null : '$fromCurrency ',
+              prefixText: '${from.currency} ',
               border: const OutlineInputBorder(),
             ),
           ),
@@ -182,9 +210,10 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
             TextField(
               controller: _amountTo,
               keyboardType: TextInputType.text,
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 labelText: 'Nominal diterima',
-                prefixText: '$toCurrency ',
+                prefixText: '${to.currency} ',
                 helperText: 'Kurs dihitung dari dua nominal ini',
                 border: const OutlineInputBorder(),
               ),
@@ -194,9 +223,10 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
           TextField(
             controller: _fee,
             keyboardType: TextInputType.text,
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: 'Biaya admin (opsional)',
-              prefixText: fromCurrency == null ? null : '$fromCurrency ',
+              prefixText: '${from.currency} ',
               border: const OutlineInputBorder(),
             ),
           ),
@@ -219,10 +249,10 @@ class _AddTransferPageState extends ConsumerState<AddTransferPage> {
             onPressed: _saving
                 ? null
                 : () => _save(
-                      fromId: fromId,
-                      toId: toId,
-                      fromCurrency: fromCurrency,
-                      toCurrency: toCurrency,
+                      fromId: from.id,
+                      toId: to.id,
+                      fromCurrency: from.currency,
+                      toCurrency: to.currency,
                     ),
             child: const Text('Simpan'),
           ),
