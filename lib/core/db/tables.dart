@@ -166,3 +166,21 @@ class AppSettings extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
+
+/// Template transaksi (pengeluaran/pemasukan) yang dipakai ulang. Akun dan
+/// nominal opsional; kategori harus bertipe sama dengan `kind`.
+class TransactionTemplates extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text().withLength(min: 1, max: 40)();
+  TextColumn get kind => textEnum<TxKind>()();
+  TextColumn get accountId =>
+      text().nullable().customConstraint('REFERENCES accounts (id)')();
+  TextColumn get categoryId =>
+      text().nullable().customConstraint('REFERENCES categories (id)')();
+  IntColumn get amountMinor => integer().nullable()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

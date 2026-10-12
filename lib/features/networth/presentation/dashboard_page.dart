@@ -7,6 +7,7 @@ import 'package:personal_finance_manager/core/money/currency_meta.dart';
 import 'package:personal_finance_manager/core/utils/ui_helpers.dart';
 import 'package:personal_finance_manager/core/widgets/amount_text.dart';
 import 'package:personal_finance_manager/features/accounts/data/account_repository.dart';
+import 'package:personal_finance_manager/features/settings/data/ai_providers.dart';
 import 'package:personal_finance_manager/features/transactions/domain/ledger_item.dart';
 import 'package:personal_finance_manager/features/transactions/presentation/ledger_providers.dart';
 
@@ -58,8 +59,14 @@ class DashboardPage extends ConsumerWidget {
           IconButton(
             icon: Icon(stealth ? Icons.visibility_off : Icons.visibility),
             tooltip: 'Stealth mode',
-            onPressed: () =>
-                ref.read(stealthModeProvider.notifier).state = !stealth,
+            onPressed: () {
+              final next = !stealth;
+              ref.read(stealthModeProvider.notifier).state = next;
+              // Disimpan supaya tetap aktif setelah app dibuka ulang.
+              ref
+                  .read(settingsRepositoryProvider)
+                  .set(stealthSettingKey, next ? '1' : '0');
+            },
           ),
         ],
       ),

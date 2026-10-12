@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:personal_finance_manager/core/db/app_database.dart';
 import 'package:personal_finance_manager/features/accounts/data/account_repository.dart';
 import 'package:personal_finance_manager/features/transactions/data/transaction_repository.dart';
+import 'package:personal_finance_manager/features/transactions/domain/ledger_filter.dart';
 import 'package:personal_finance_manager/features/transactions/domain/ledger_item.dart';
 
 /// Bulan yang sedang dilihat (selalu tanggal 1, jam 00:00).
@@ -10,31 +11,34 @@ final selectedMonthProvider = StateProvider<DateTime>((ref) {
   return DateTime(now.year, now.month);
 });
 
+/// Filter jenis, pencarian, dan rentang tanggal di layar Transaksi.
+final ledgerFilterProvider =
+    StateProvider<LedgerFilter>((ref) => const LedgerFilter());
+
 /// Semua akun termasuk yang diarsipkan, untuk menampilkan nama di riwayat lama.
 final allAccountsProvider = StreamProvider<List<Account>>(
   (ref) => ref.watch(accountRepositoryProvider).watchAll(includeArchived: true),
 );
 
-DateTime _nextMonth(DateTime month) => DateTime(month.year, month.month + 1);
-
-final _monthTransactionsProvider =
-    StreamProvider.family<List<TransactionRow>, DateTime>(
-  (ref, month) => ref
+final _rangeTransactionsProvider =
+    StreamProvider.family<List<TransactionRow>, LedgerRange>(
+  (ref, range) => ref
       .watch(transactionRepositoryProvider)
-      .watchBetween(month, _nextMonth(month)),
+      .watchBetween(range.from, range.to),
 );
 
-final _monthTransfersProvider = StreamProvider.family<List<Transfer>, DateTime>(
-  (ref, month) => ref
+final _rangeTransfersProvider =
+    StreamProvider.family<List<Transfer>, LedgerRange>(
+  (ref, range) => ref
       .watch(transactionRepositoryProvider)
-      .watchTransfersBetween(month, _nextMonth(month)),
+      .watchTransfersBetween(range.from, range.to),
 );
 
-/// Transaksi + transfer satu bulan, digabung dan diurutkan terbaru dulu.
-final ledgerProvider =
-    Provider.family<AsyncValue<List<LedgerItem>>, DateTime>((ref, month) {
-  final tx = ref.watch(_monthTransactionsProvider(month));
-  final tr = ref.watch(_monthTransfersProvider(month));
+/// Transaksi + transfer dalam satu rentang, digabung dan diurutkan terbaru dulu.
+final rangeLedgerProvider =
+    Provider.family<AsyncValue<List<LedgerItem>>, LedgerRange>((ref, range) {
+  final tx = ref.watch(_rangeTransactionsProvider(range));
+  final tr = ref.watch(_rangeTransfersProvider(range));
 
   if (tx.hasError) {
     return AsyncValue.error(tx.error!, tx.stackTrace ?? StackTrace.current);
@@ -54,3 +58,9 @@ final ledgerProvider =
 
   return AsyncValue.data(items);
 });
+
+/// Satu bulan penuh. Dipakai Ringkasan.
+final ledgerProvider =
+    Provider.family<AsyncValue<List<LedgerItem>>, DateTime>(
+  (ref, month) => ref.watch(rangeLedgerProvider(LedgerRange.month(month))),
+);

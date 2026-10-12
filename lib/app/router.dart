@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:personal_finance_manager/core/db/app_database.dart';
 import 'package:personal_finance_manager/features/accounts/presentation/add_account_page.dart';
 import 'package:personal_finance_manager/features/settings/presentation/settings_page.dart';
+import 'package:personal_finance_manager/features/templates/presentation/templates_page.dart';
 import 'package:personal_finance_manager/features/transactions/presentation/add_transaction_page.dart';
 import 'package:personal_finance_manager/features/transactions/presentation/add_transfer_page.dart';
 
@@ -18,6 +20,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/add-transaction',
         builder: (context, state) => const AddTransactionPage(),
+      ),
+      GoRoute(
+        path: '/edit-transaction',
+        builder: (context, state) =>
+            AddTransactionPage(existing: state.extra as TransactionRow?),
+      ),
+      GoRoute(
+        path: '/templates',
+        builder: (context, state) => const TemplatesPage(),
       ),
       GoRoute(
         path: '/settings',

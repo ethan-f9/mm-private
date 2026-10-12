@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:personal_finance_manager/core/ai/ai_config.dart';
 import 'package:personal_finance_manager/core/ai/llm_client.dart';
 import 'package:personal_finance_manager/core/utils/ui_helpers.dart';
@@ -143,6 +144,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.bookmarks_outlined),
+                  title: const Text('Template transaksi'),
+                  subtitle: const Text('Kelola template pengeluaran dan pemasukan'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/templates'),
+                ),
+                const Divider(),
+                const SizedBox(height: 16),
                 Text('Provider AI', style: text.titleMedium),
                 const SizedBox(height: 4),
                 Text(

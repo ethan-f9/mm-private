@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:personal_finance_manager/core/money/money_format.dart';
 
 /// Stealth Mode: kalau aktif, semua nominal tampil sebagai ****.
-/// State ini belum disimpan permanen (reset saat app dibuka ulang).
+/// Nilainya disimpan di tabel pengaturan (kunci [stealthSettingKey]) dan
+/// dimuat saat app dibuka (lihat main.dart).
 final stealthModeProvider = StateProvider<bool>((ref) => false);
+
+const stealthSettingKey = 'ui.stealth';
 
 class AmountText extends ConsumerWidget {
   const AmountText({

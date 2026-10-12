@@ -26,25 +26,12 @@ class TransactionRepository {
     String? note,
     TxSource source = TxSource.manual,
   }) async {
-    if (amountMinor <= 0) {
-      throw ArgumentError.value(amountMinor, 'amountMinor', 'harus lebih dari 0');
-    }
-    final account = await _requireAccount(accountId);
-
-    if (categoryId != null) {
-      final category = await (_db.select(_db.categories)
-            ..where((c) => c.id.equals(categoryId)))
-          .getSingleOrNull();
-      if (category == null) {
-        throw ArgumentError('Kategori tidak ditemukan: $categoryId');
-      }
-      if (category.kind.name != kind.name) {
-        throw ArgumentError(
-          'Kategori "${category.name}" bertipe ${category.kind.name}, '
-          'transaksi bertipe ${kind.name}',
-        );
-      }
-    }
+    final account = await _validateTransaction(
+      accountId: accountId,
+      kind: kind,
+      amountMinor: amountMinor,
+      categoryId: categoryId,
+    );
 
     final id = _uuid.v4();
     await _db.into(_db.transactions).insert(
@@ -61,6 +48,41 @@ class TransactionRepository {
           ),
         );
     return id;
+  }
+
+  /// Ubah transaksi yang sudah ada. Aturan validasinya sama dengan
+  /// [addTransaction]; `source` tidak diubah.
+  Future<void> updateTransaction({
+    required String id,
+    required String accountId,
+    required TxKind kind,
+    required int amountMinor,
+    required DateTime occurredAt,
+    String? categoryId,
+    String? note,
+  }) async {
+    final account = await _validateTransaction(
+      accountId: accountId,
+      kind: kind,
+      amountMinor: amountMinor,
+      categoryId: categoryId,
+    );
+
+    final updated =
+        await (_db.update(_db.transactions)..where((t) => t.id.equals(id))).write(
+      TransactionsCompanion(
+        accountId: Value(accountId),
+        categoryId: Value(categoryId),
+        kind: Value(kind),
+        amountMinor: Value(amountMinor),
+        currency: Value(account.currency),
+        note: Value(note),
+        occurredAt: Value(occurredAt),
+      ),
+    );
+    if (updated == 0) {
+      throw ArgumentError('Transaksi tidak ditemukan: $id');
+    }
   }
 
   Future<String> addTransfer({
@@ -131,12 +153,40 @@ class TransactionRepository {
     return query.watch();
   }
 
+  Future<void> deleteTransaction(String id) {
+    return (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
+  }
+
   Future<void> deleteTransfer(String id) {
     return (_db.delete(_db.transfers)..where((t) => t.id.equals(id))).go();
   }
 
-  Future<void> deleteTransaction(String id) {
-    return (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
+  Future<Account> _validateTransaction({
+    required String accountId,
+    required TxKind kind,
+    required int amountMinor,
+    String? categoryId,
+  }) async {
+    if (amountMinor <= 0) {
+      throw ArgumentError.value(amountMinor, 'amountMinor', 'harus lebih dari 0');
+    }
+    final account = await _requireAccount(accountId);
+
+    if (categoryId != null) {
+      final category = await (_db.select(_db.categories)
+            ..where((c) => c.id.equals(categoryId)))
+          .getSingleOrNull();
+      if (category == null) {
+        throw ArgumentError('Kategori tidak ditemukan: $categoryId');
+      }
+      if (category.kind.name != kind.name) {
+        throw ArgumentError(
+          'Kategori "${category.name}" bertipe ${category.kind.name}, '
+          'transaksi bertipe ${kind.name}',
+        );
+      }
+    }
+    return account;
   }
 
   Future<Account> _requireAccount(String id) async {
