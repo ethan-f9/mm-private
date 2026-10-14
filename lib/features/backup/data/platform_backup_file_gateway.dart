@@ -6,16 +6,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:personal_finance_manager/features/applock/data/app_lock_controller.dart';
+
 import 'backup_file_gateway.dart';
 
 /// Satu-satunya tempat yang memakai plugin file/share dan channel native.
 /// Operasi folder memakai MainActivity.kt (tanpa plugin pihak ketiga).
 class PlatformBackupFileGateway implements BackupFileGateway {
+  PlatformBackupFileGateway({this.onExternalLaunch});
+
+  /// Dipanggil sebelum membuka aktivitas luar (pemilih file/folder, share sheet)
+  /// supaya kunci aplikasi tidak langsung aktif saat kembali dari sana.
+  final void Function()? onExternalLaunch;
+
   static const _channel =
       MethodChannel('com.ethanmt.personal_finance_manager/backup_storage');
 
   @override
   Future<String?> pickAndRead() async {
+    onExternalLaunch?.call();
     // Tanpa filter tipe: file dari Drive/Telegram kadang tidak bertipe json.
     final XFile? picked = await openFile();
     if (picked == null) return null;
@@ -27,6 +36,7 @@ class PlatformBackupFileGateway implements BackupFileGateway {
     required String fileName,
     required String content,
   }) async {
+    onExternalLaunch?.call();
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}${Platform.pathSeparator}$fileName');
     await file.writeAsString(content, flush: true);
@@ -40,7 +50,10 @@ class PlatformBackupFileGateway implements BackupFileGateway {
   }
 
   @override
-  Future<String?> pickFolder() => _channel.invokeMethod<String>('pickFolder');
+  Future<String?> pickFolder() {
+    onExternalLaunch?.call();
+    return _channel.invokeMethod<String>('pickFolder');
+  }
 
   @override
   Future<BackupFolderInfo?> describeFolder(String treeUri) async {
@@ -107,5 +120,8 @@ class PlatformBackupFileGateway implements BackupFileGateway {
 }
 
 final backupFileGatewayProvider = Provider<BackupFileGateway>(
-  (ref) => PlatformBackupFileGateway(),
+  (ref) => PlatformBackupFileGateway(
+    onExternalLaunch: () =>
+        ref.read(appLockProvider.notifier).suspendNextResume(DateTime.now()),
+  ),
 );

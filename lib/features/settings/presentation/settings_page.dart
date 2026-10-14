@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:personal_finance_manager/core/ai/ai_config.dart';
 import 'package:personal_finance_manager/core/ai/llm_client.dart';
 import 'package:personal_finance_manager/core/utils/ui_helpers.dart';
+import 'package:personal_finance_manager/features/applock/presentation/security_section.dart';
 import 'package:personal_finance_manager/features/settings/data/ai_providers.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -160,6 +161,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/backup'),
                 ),
+                const Divider(),
+                const SecuritySection(),
                 const Divider(),
                 const SizedBox(height: 16),
                 Text('Provider AI', style: text.titleMedium),

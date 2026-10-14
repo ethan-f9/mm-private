@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:personal_finance_manager/features/applock/presentation/app_lock_gate.dart';
 import 'package:personal_finance_manager/features/backup/data/backup_providers.dart';
 import 'package:personal_finance_manager/features/backup/data/backup_service.dart';
 import 'package:personal_finance_manager/features/market/data/market_refresh_service.dart';
@@ -62,6 +63,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }

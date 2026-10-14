@@ -1,30 +1,47 @@
 package com.ethanmt.personal_finance_manager
 
 import android.app.Activity
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.Intent
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.net.Uri
+import android.os.Build
+import android.os.CancellationSignal
 import android.provider.DocumentsContract
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Jembatan ke Android Storage Access Framework untuk backup:
- * pilih folder sekali (izin disimpan permanen), lalu tulis/daftar/hapus file di
- * folder itu tanpa dialog lagi. Tidak memakai plugin pihak ketiga.
+ * Dua jembatan native tanpa plugin pihak ketiga:
+ * 1. backup_storage: pilih folder sekali (izin permanen), lalu tulis/daftar/hapus
+ *    file di folder itu lewat Storage Access Framework.
+ * 2. app_lock: kunci aplikasi memakai biometrik atau PIN/pola/sandi HP
+ *    (BiometricPrompt bawaan Android), dan FLAG_SECURE untuk "layar aman".
  */
 class MainActivity : FlutterActivity() {
     companion object {
-        private const val CHANNEL = "com.ethanmt.personal_finance_manager/backup_storage"
+        private const val BACKUP_CHANNEL = "com.ethanmt.personal_finance_manager/backup_storage"
+        private const val LOCK_CHANNEL = "com.ethanmt.personal_finance_manager/app_lock"
         private const val REQUEST_PICK_TREE = 4101
+        private const val REQUEST_CONFIRM_CREDENTIAL = 4102
+
+        // Kode error BiometricPrompt: 5 = dibatalkan sistem, 10 = dibatalkan pengguna.
+        private const val ERROR_CANCELED = 5
+        private const val ERROR_USER_CANCELED = 10
     }
 
     private var pendingPick: MethodChannel.Result? = null
+    private var pendingAuth: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BACKUP_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "pickFolder" -> pickFolder(result)
@@ -36,7 +53,112 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LOCK_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isDeviceSecure" -> result.success(isDeviceSecure())
+                    "authenticate" -> authenticate(call, result)
+                    "setSecure" -> setSecure(call, result)
+                    else -> result.notImplemented()
+                }
+            }
     }
+
+    // ------------------------------------------------------------------
+    // Kunci aplikasi
+    // ------------------------------------------------------------------
+
+    private fun isDeviceSecure(): Boolean {
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        return keyguard.isDeviceSecure
+    }
+
+    /**
+     * Hasil (String): "success", "cancelled", atau "error:<kode>:<pesan>".
+     * Android 11 ke atas: BiometricPrompt (biometrik atau kunci layar).
+     * Di bawahnya: layar konfirmasi kunci layar bawaan.
+     */
+    private fun authenticate(call: MethodCall, result: MethodChannel.Result) {
+        if (pendingAuth != null) {
+            result.error("busy", "Autentikasi sedang berjalan", null)
+            return
+        }
+        val title = call.argument<String>("title") ?: "Buka kunci"
+        val subtitle = call.argument<String>("subtitle")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            authenticateWithPrompt(title, subtitle, result)
+        } else {
+            authenticateWithKeyguard(title, subtitle, result)
+        }
+    }
+
+    private fun authenticateWithPrompt(title: String, subtitle: String?, result: MethodChannel.Result) {
+        pendingAuth = result
+        try {
+            val builder = BiometricPrompt.Builder(this)
+                .setTitle(title)
+                .setAllowedAuthenticators(
+                    BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                )
+            if (subtitle != null) builder.setSubtitle(subtitle)
+
+            builder.build().authenticate(
+                CancellationSignal(),
+                mainExecutor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
+                        finishAuth("success")
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
+                        if (errorCode == ERROR_CANCELED || errorCode == ERROR_USER_CANCELED) {
+                            finishAuth("cancelled")
+                        } else {
+                            finishAuth("error:$errorCode:${errString ?: ""}")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            finishAuth("error:exception:${e.message ?: ""}")
+        }
+    }
+
+    private fun authenticateWithKeyguard(title: String, subtitle: String?, result: MethodChannel.Result) {
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        @Suppress("DEPRECATION")
+        val intent = keyguard.createConfirmDeviceCredentialIntent(title, subtitle)
+        if (intent == null) {
+            result.success("error:no_credential:Perangkat tidak punya kunci layar")
+            return
+        }
+        pendingAuth = result
+        startActivityForResult(intent, REQUEST_CONFIRM_CREDENTIAL)
+    }
+
+    private fun finishAuth(value: String) {
+        val result = pendingAuth ?: return
+        pendingAuth = null
+        result.success(value)
+    }
+
+    /** FLAG_SECURE: blokir screenshot dan sembunyikan isi app di daftar app terbaru. */
+    private fun setSecure(call: MethodCall, result: MethodChannel.Result) {
+        val enabled = call.argument<Boolean>("enabled") ?: false
+        if (enabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        result.success(null)
+    }
+
+    // ------------------------------------------------------------------
+    // Backup: folder tujuan (Storage Access Framework)
+    // ------------------------------------------------------------------
 
     private fun pickFolder(result: MethodChannel.Result) {
         if (pendingPick != null) {
@@ -62,8 +184,14 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_PICK_TREE) return
+        when (requestCode) {
+            REQUEST_PICK_TREE -> handlePickTreeResult(resultCode, data)
+            REQUEST_CONFIRM_CREDENTIAL ->
+                finishAuth(if (resultCode == Activity.RESULT_OK) "success" else "cancelled")
+        }
+    }
 
+    private fun handlePickTreeResult(resultCode: Int, data: Intent?) {
         val result = pendingPick ?: return
         pendingPick = null
 
