@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:personal_finance_manager/features/accounts/presentation/accounts_page.dart';
+import 'package:personal_finance_manager/features/investments/presentation/portfolio_page.dart';
 import 'package:personal_finance_manager/features/networth/presentation/dashboard_page.dart';
 import 'package:personal_finance_manager/features/transactions/presentation/ledger_page.dart';
 
@@ -17,6 +18,7 @@ class _AppShellState extends State<AppShell> {
   static const _pages = <Widget>[
     DashboardPage(),
     LedgerPage(),
+    PortfolioPage(),
     AccountsPage(),
   ];
 
@@ -70,6 +72,11 @@ class _AppShellState extends State<AppShell> {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Transaksi',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.trending_up),
+            selectedIcon: Icon(Icons.trending_up),
+            label: 'Investasi',
           ),
           NavigationDestination(
             icon: Icon(Icons.account_balance_wallet_outlined),

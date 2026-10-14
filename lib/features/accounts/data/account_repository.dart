@@ -4,6 +4,7 @@ import 'package:personal_finance_manager/core/db/app_database.dart';
 import 'package:personal_finance_manager/core/db/enums.dart';
 import 'package:personal_finance_manager/core/db/providers.dart';
 import 'package:personal_finance_manager/core/money/currency_meta.dart';
+import 'package:personal_finance_manager/features/investments/domain/trade_cash.dart';
 import 'package:uuid/uuid.dart';
 
 class AccountRepository {
@@ -14,8 +15,9 @@ class AccountRepository {
 
   /// Saldo per akun (minor unit, dalam currency akun itu sendiri):
   /// opening balance + transaksi (income - expense) + transfer masuk
-  /// - transfer keluar - fee transfer.
-  /// Trade investasi ditambahkan di fase 2.
+  /// - transfer keluar - fee transfer + dampak kas trade investasi.
+  /// Dampak trade dihitung di Dart ([_applyTradeCash]) karena jumlah dan
+  /// harga disimpan sebagai Decimal (teks), bukan angka SQL.
   static const _balanceSql = '''
 SELECT a.id AS id,
   a.opening_balance_minor
@@ -72,8 +74,39 @@ FROM accounts a
   Selectable<QueryRow> _balanceQuery() {
     return _db.customSelect(
       _balanceSql,
-      readsFrom: {_db.accounts, _db.transactions, _db.transfers},
+      readsFrom: {
+        _db.accounts,
+        _db.transactions,
+        _db.transfers,
+        _db.trades,
+        _db.assets,
+      },
     );
+  }
+
+  /// Tambahkan dampak kas trade yang punya akun pendanaan.
+  Future<Map<String, int>> _applyTradeCash(Map<String, int> base) async {
+    final trades = await (_db.select(_db.trades)
+          ..where((t) => t.fundingAccountId.isNotNull()))
+        .get();
+    if (trades.isEmpty) return base;
+
+    final assets = {for (final a in await _db.select(_db.assets).get()) a.id: a};
+    final result = Map<String, int>.of(base);
+    for (final t in trades) {
+      final asset = assets[t.assetId];
+      final accountId = t.fundingAccountId;
+      if (asset == null || accountId == null) continue;
+      result[accountId] = (result[accountId] ?? 0) +
+          tradeCashDeltaMinor(
+            side: t.side,
+            quantity: t.quantity,
+            price: t.price,
+            feeMinor: t.feeMinor,
+            currency: asset.currency,
+          );
+    }
+    return result;
   }
 
   Map<String, int> _toMap(List<QueryRow> rows) => {
@@ -82,9 +115,11 @@ FROM accounts a
       };
 
   /// account id -> saldo (minor unit currency akun).
-  Future<Map<String, int>> balances() async => _toMap(await _balanceQuery().get());
+  Future<Map<String, int>> balances() async =>
+      _applyTradeCash(_toMap(await _balanceQuery().get()));
 
-  Stream<Map<String, int>> watchBalances() => _balanceQuery().watch().map(_toMap);
+  Stream<Map<String, int>> watchBalances() =>
+      _balanceQuery().watch().asyncMap((rows) => _applyTradeCash(_toMap(rows)));
 }
 
 final accountRepositoryProvider = Provider<AccountRepository>(

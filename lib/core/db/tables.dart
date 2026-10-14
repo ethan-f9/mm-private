@@ -82,6 +82,9 @@ class Assets extends Table {
   IntColumn get quantityScale => integer().withDefault(const Constant(8))();
   TextColumn get priceSource => textEnum<PriceSource>()();
 
+  /// ID di penyedia harga otomatis (CoinGecko, mis. "bitcoin"). Null = manual.
+  TextColumn get externalId => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

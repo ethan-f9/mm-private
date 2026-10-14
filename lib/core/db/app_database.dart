@@ -35,12 +35,13 @@ class AppDatabase extends _$AppDatabase {
   /// Riwayat skema:
   /// 1 = skema awal
   /// 2 = tambah tabel `transaction_templates`
+  /// 3 = tambah kolom `assets.external_id`
   ///
   /// Setiap perubahan skema: naikkan angka ini, tambah blok `if (from < N)`
   /// di onUpgrade, dan tambah test di test/core/db/migration_test.dart.
   /// Jangan pernah drop-and-recreate data user.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -48,6 +49,9 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             await m.createTable(transactionTemplates);
+          }
+          if (from < 3) {
+            await m.addColumn(assets, assets.externalId);
           }
         },
         beforeOpen: (details) async {

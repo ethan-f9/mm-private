@@ -152,6 +152,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/templates'),
                 ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.cloud_upload_outlined),
+                  title: const Text('Backup dan pemulihan'),
+                  subtitle: const Text('Ekspor data ke file, atau pulihkan dari file'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/backup'),
+                ),
                 const Divider(),
                 const SizedBox(height: 16),
                 Text('Provider AI', style: text.titleMedium),
@@ -232,9 +240,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Yang dikirim ke provider: teks yang kamu ketik di '
-                  '"Isi dengan AI" beserta nama akun dan kategori. Saldo dan '
-                  'riwayat transaksi tidak dikirim.',
+                  'Yang dikirim ke provider: (1) teks yang kamu ketik di '
+                  '"Isi dengan AI" beserta nama akun dan kategori; (2) untuk '
+                  'Advisor, ringkasan angka agregat (total per bulan, per '
+                  'kategori, alokasi aset). Transaksi satu per satu, catatan, '
+                  'dan nama akun tidak dikirim.',
                   style: text.bodySmall,
                 ),
               ],
